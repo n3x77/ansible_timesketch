@@ -1,0 +1,6 @@
+---
+# file: roles/timesketch_latest/tasks/main.yml
+
+# Check if we have ubuntu xenial (16.04) 
+- include: ubuntu.yml
+  when: ansible_distribution == 'Ubuntu'

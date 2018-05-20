@@ -1,0 +1,190 @@
+---
+- name: Elasticsearch | Create scripts folder for timesketch groovy scripts
+  file:
+    path: /etc/elasticsearch/scripts/
+    state: directory
+
+- name: Elasticsearch | Download timesketch groovy scripts from github
+  get_url:
+    url: "{{ item }}"
+    dest: /etc/elasticsearch/scripts/
+    owner: elasticsearch
+    group : elasticsearch
+  with_items:
+     - https://raw.githubusercontent.com/google/timesketch/master/contrib/add_label.groovy
+     - https://raw.githubusercontent.com/google/timesketch/master/contrib/toggle_label.groovy
+  notify: Restart elasticsearch
+
+- name: APT | Install needed packages and dependencies
+  apt:
+    name:
+      - postgresql
+      - python-psycopg2
+      - python-pip
+      - python-dev
+      - libffi-dev
+      - redis-server
+      - git-core
+    state: latest
+    update_cache: yes
+
+- name: PIP | Upgrade pip
+  command: "pip install --upgrade pip"
+
+- name: GIT | Checkout latest Timesketch HEAD from master-branch
+  git:
+    repo: "https://github.com/google/timesketch.git"
+    dest: "/home/{{ ansible_user }}/timesketch"
+
+- name: PIP | Install elasticsearch5 python client 
+  pip:
+    name: elasticsearch5 
+
+- name: PIP | Install latest timesketch
+  pip:
+    name: .
+    chdir: "/home/{{ ansible_user }}/timesketch"
+    extra_args: --upgrade
+
+- name: Yarn | Build Timesketch JS/CSS bundle files
+  shell: yarn install && yarn build
+  args:
+    chdir: "/home/{{ ansible_user }}/timesketch"
+    executable: /bin/bash
+
+- name: Timesketch | Copy Static files
+  synchronize:
+    src: "/home/{{ ansible_user }}/timesketch/timesketch/static/"
+    dest: /usr/local/lib/python2.7/dist-packages/timesketch/static/
+    recursive: yes
+  delegate_to: "{{ inventory_hostname }}"
+
+- name: Timesketch | Copy timesketch configuration file
+  copy:
+    remote_src: true
+    src: "/usr/local/share/timesketch/timesketch.conf"
+    dest: "/etc/timesketch.conf"
+    owner: "{{ ansible_user }}"
+    group: "{{ ansible_user }}"
+    mode: 0644
+
+- name: Timesketch | Create upload folder (Celery needs rights on it)
+  file:
+    path: /upload_timesketch
+    state: directory
+    owner: "{{ ansible_user }}"
+    group: celery
+    mode: 0770
+
+- name: OpenSSL | Generate random number
+  command: "openssl rand -base64 32"
+  register: secret_key
+
+- name: Timesketch | Edit /etc/timesketch.conf
+  replace:
+    dest: "/etc/timesketch.conf"
+    regexp: "{{ item.regexp }}"
+    replace: "{{ item.replace }}"
+  with_items:
+    - { regexp: "SECRET_KEY = u'<KEY_GOES_HERE>'", replace: "SECRET_KEY = u'{{ secret_key.stdout }}'" }
+    - { regexp: "SQLALCHEMY_DATABASE_URI = 'postgresql://<USERNAME>:<PASSWORD>@localhost/timesketch'", replace: "SQLALCHEMY_DATABASE_URI = 'postgresql://timesketch:{{ postgresql_db_pw }}@localhost/timesketch'" }
+    - { regexp: "UPLOAD_ENABLED = False", replace: "UPLOAD_ENABLED = True" }
+    - { regexp: "UPLOAD_FOLDER = u'/tmp'", replace: "UPLOAD_FOLDER = u'/upload_timesketch'" }
+    - { regexp: "GRAPH_BACKEND_ENABLED = False", replace: "GRAPH_BACKEND_ENABLED = True" }
+    - { regexp: "NEO4J_PASSWORD = u'<N4J_PASSWORD>'", replace: "NEO4J_PASSWORD = u'{{ neo4j_user_pw }}'" }
+
+- name: PostgreSQL | Disbable SSL because of Problems with celery
+  lineinfile:
+    dest: /etc/postgresql/9.5/main/postgresql.conf
+    regexp: '^ssl\ \=\ true'
+    line: 'ssl = false'
+    backup: yes
+
+- name: PostgreSQL | Edit /etc/postgresql/9.5/main/pg_hba.conf
+  lineinfile:
+    dest: /etc/postgresql/9.5/main/pg_hba.conf
+    line: 'local    all             timesketch                              md5'
+    backup: yes
+  notify: Restart postgresql
+
+- name: PostgreSQL | Add PostgreSQL timesketch user
+  become: true
+  become_user: postgres
+  postgresql_user:
+    name: "timesketch"
+    password: "{{ postgresql_db_pw }}"
+    role_attr_flags: CREATEDB,CREATEROLE,NOSUPERUSER
+
+- name: PostgreSQL | Add timesketch database
+  become: true
+  become_user: postgres
+  postgresql_db:
+    name: timesketch
+    owner: "timesketch"
+
+- name: Timesketch | Add a new user to Timesketch
+  command: "tsctl add_user -u {{ timesketch_user }} -p {{ timesketch_user_pw }}"
+
+- name: SystemD | Create timesketch service listening on localhost
+  template:
+    src: timesketch.service.j2
+    dest: /etc/systemd/system/timesketch.service
+    owner: root
+    group: root
+    mode: '0644'
+
+- name: Systemctl | Reload systemctl daemon
+  command: "systemctl daemon-reload"
+  notify:
+    - Restart timesketch
+
+- name: Create service account for Celery
+  user:
+    name: celery
+    shell: /bin/false
+    system: yes
+
+- name: Celery | Create celery working directory
+  file:
+    path: /opt/celery
+    owner: celery
+    group: celery
+    mode: '0700'
+    state: directory
+
+- name: SystemD | Create celery service for Plaso upload feature
+  template:
+    src: celery.service.j2
+    dest: /etc/systemd/system/celery.service
+    owner: celery
+    group: celery
+    mode: '0644'
+
+- name: Celery | Create celery conf.d directory
+  file:
+    path: /etc/conf.d
+    mode: '0700'
+    state: directory
+
+- name: Celery | Create celery tmpfiles so that working directories will be created automatically
+  template:
+    src: celery.conf.j2
+    dest: /usr/lib/tmpfiles.d/celery.conf
+
+- name: Celery | Create celery timesketch config
+  template:
+    src: celery.j2
+    dest: /etc/conf.d/celery
+
+- name: Systemctl | Reload systemctl daemon
+  command: "systemctl daemon-reload"
+  notify:
+    - Restart celery
+
+- name:  GIT | Delete the git repository timeksetch
+  file:
+    path: "/home/{{ ansible_user }}/timesketch"
+    state: absent
+
+- name: Reboot the system
+  command:  shutdown -r now 'Rebooting to complete timesketch installation'

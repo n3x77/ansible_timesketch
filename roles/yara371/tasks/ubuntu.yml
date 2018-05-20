@@ -1,0 +1,55 @@
+---
+# file: roles/yara371/tasks/ubuntu.yml
+- name: APT | Install Yara dependencies
+  apt:
+    name:
+      - automake
+      - libtool
+      - make
+      - gcc
+      - flex
+      - bison
+      - libssl-dev
+      - libmagic-dev
+      - unzip
+    state: present
+
+- name: Yara | Copy yara version 3.7.1 and extract archive
+  unarchive:
+    src: "{{role_path}}/files/v3.7.1.zip"
+    dest: "/home/{{ansible_user}}"
+    owner: "{{ansible_user}}"
+    group: "{{ansible_user}}"
+    mode: "700"
+    remote_src: no
+
+- name: Yara | Execute bootstrap.sh
+  become_user: "{{ansible_user}}"
+  become_method: su
+  shell: "/home/{{ansible_user}}/yara-3.7.1/bootstrap.sh"
+  args:
+    chdir: "/home/{{ansible_user}}/yara-3.7.1/"
+
+- name: Yara | Configure yara
+  become_user: "{{ansible_user}}"
+  become_method: su
+  command: ./configure --enable-magic
+  args:
+    chdir: "/home/{{ansible_user}}/yara-3.7.1/"
+
+- name: Yara | make yara
+  become_user: "{{ansible_user}}"
+  become_method: su
+  command: make
+  args:
+    chdir: "/home/{{ansible_user}}/yara-3.7.1/"
+
+- name: Yara | make install
+  command: make install
+  args:
+    chdir: "/home/{{ansible_user}}/yara-3.7.1/"
+
+- name:  Yara | Delete the local yara installation dir
+  file:
+    path: "/home/{{ansible_user}}/yara-3.7.1/"
+    state: absent

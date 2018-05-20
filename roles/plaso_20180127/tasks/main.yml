@@ -1,0 +1,6 @@
+---
+# file: roles/plaso_20180127/tasks/main.yml
+
+# Check if we have ubuntu xenial (16.04) 
+- include: ubuntu.yml
+  when: ansible_distribution == 'Ubuntu'

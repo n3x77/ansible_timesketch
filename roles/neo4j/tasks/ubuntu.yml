@@ -1,0 +1,35 @@
+---
+# file: roles/neo4j/tasks/ubuntu.yml
+- name: APT | Add neo4j repository key
+  apt_key:
+    url: "https://debian.neo4j.org/neotechnology.gpg.key"
+    state: present
+
+- name: APT | Create /etc/apt/sources.list.d/neo4j.list
+  file:
+    path: /etc/apt/sources.list.d/neo4j.list
+    state: touch
+
+- name: APT | Add Add Node.js 8.x repo to /etc/apt/sources.list.d/neo4j.list
+  lineinfile:
+    dest: /etc/apt/sources.list.d/neo4j.list
+    line: "deb http://debian.neo4j.org/repo stable/"
+
+- name: APT | Install neo4j
+  apt:
+    name: neo4j
+    state: present
+    install_recommends: yes
+    update_cache: yes
+
+- name: Systemctl | Reload systemd
+  command: systemctl daemon-reload
+
+- name: Systemctl | Enable neo4j systemd
+  command: systemctl enable neo4j
+
+- name: Systemctl | Enable neo4j systemd service
+  service:
+    name: neo4j.service
+    enabled: yes
+    state: started

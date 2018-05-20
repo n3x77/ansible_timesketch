@@ -1,0 +1,74 @@
+---
+# file: roles/elasticsearch_5/tasks/ubuntu.yml
+- name: APT | Add Elasticsearch repository key
+  apt_key:
+    url: "https://artifacts.elastic.co/GPG-KEY-elasticsearch"
+    state: present
+
+- name: APT | Create /etc/apt/sources.list.d/elasticsearch-5.x.list
+  file:
+    path: /etc/apt/sources.list.d/elasticsearch-5.x.list
+    state: touch
+
+- name: APT | Add repo elasticsearch 5.X to /etc/apt/sources.list.d/elasticsearch-5.x.list
+  lineinfile:
+    dest: /etc/apt/sources.list.d/elasticsearch-5.x.list
+    line: "deb https://artifacts.elastic.co/packages/5.x/apt stable main"
+
+- name: APT | Install Elasticsearch
+  apt:
+    name: elasticsearch
+    state: present
+    update_cache: yes
+
+- name: SYSCTL | Edit /etc/sysctl.conf to configure swappiness
+  lineinfile:
+    dest: /etc/sysctl.conf
+    line: "{{ item }}"
+  with_items:
+    - "vm.max_map_count=262144"
+    - "vm.swappiness=15"
+
+- name: Elasticsearch | Edit /etc/elasticsearch/elasticsearch.yml
+  lineinfile:
+    dest: "/etc/elasticsearch/elasticsearch.yml"
+    line: "{{ item }}"
+  with_items:
+    - "cluster.name: {{ clustername }}"
+    - "node.name: {{ ansible_hostname }}"
+    - "bootstrap.memory_lock: true"
+
+- name: Limits.conf | Edit /etc/security/limits.conf
+  lineinfile:
+    dest: "/etc/security/limits.conf"
+    line: "{{ item }}"
+  with_items:
+    - "elasticsearch   -     nproc     2048"
+    - "elasticsearch   -     nofile    65536"
+    - "elasticsearch   soft  memlock   unlimited"
+    - "elasticsearch   hard  memlock   unlimited"
+
+- name: Elasticsearch | Edit /etc/default/elasticsearch
+  lineinfile:
+    dest: "/etc/default/elasticsearch"
+    line: "{{ item }}"
+  with_items:
+    - "ES_JAVA_OPTS=-Xms{{ heap }}g -Xmx{{heap}}g"
+
+- name: Elasticsearch | Edit /usr/lib/systemd/system/elasticsearch.service (2)
+  lineinfile:
+    dest: "/usr/lib/systemd/system/elasticsearch.service"
+    line: "LimitMEMLOCK=infinity"
+    insertafter: "^[Service]"
+
+- name: Systemctl | Reload systemd
+  command: systemctl daemon-reload
+
+- name: Systemctl | Enable elasticsearch systemd
+  command: systemctl enable elasticsearch
+
+- name: Systemctl | Enable and start elasticsearch service
+  service:
+    name: elasticsearch.service
+    enabled: yes
+    state: started

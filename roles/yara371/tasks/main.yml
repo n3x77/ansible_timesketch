@@ -1,0 +1,4 @@
+---
+# file: roles/yara371/tasks/main.yml
+- include: ubuntu.yml
+  when: ansible_distribution == 'Ubuntu'

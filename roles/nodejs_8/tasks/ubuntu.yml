@@ -1,0 +1,23 @@
+---
+# file: roles/nodejs_8/tasks/ubuntu.yml
+- name: APT | Add Node.js 8.x repository key
+  apt_key:
+    url: "https://deb.nodesource.com/gpgkey/nodesource.gpg.key"
+    state: present
+
+- name: APT | Create /etc/apt/sources.list.d/nodesource.list
+  file:
+    path: /etc/apt/sources.list.d/nodesource.list
+    state: touch
+
+- name: APT | Add Add Node.js 8.x repo to /etc/apt/sources.list.d/nodesource.list
+  lineinfile:
+    dest: /etc/apt/sources.list.d/nodesource.list
+    line: "deb https://deb.nodesource.com/node_8.x xenial main"
+
+- name: APT | Install nodejs
+  apt:
+    name: nodejs=8.*
+    state: present
+    install_recommends: yes
+    update_cache: yes

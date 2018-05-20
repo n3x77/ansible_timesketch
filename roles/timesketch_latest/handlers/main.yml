@@ -1,0 +1,23 @@
+---
+
+- name: Restart elasticsearch
+  service:
+    name: elasticsearch
+    state: restarted
+
+- name: Restart postgresql
+  service:
+    name: postgresql
+    state: restarted
+
+- name: Restart timesketch
+  service:
+    name: timesketch
+    state: restarted
+    enabled: yes
+
+- name: Restart celery
+  service:
+    name: celery
+    state: restarted
+    enabled: yes

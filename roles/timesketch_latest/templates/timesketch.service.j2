@@ -1,0 +1,14 @@
+[Unit]
+Description=Timesketch Forensics Timeline Analysis
+After=multi-user.target
+ 
+[Service]
+Type=idle
+User={{ ansible_user }}
+ExecStart=/usr/local/bin/tsctl runserver -h 127.0.0.1 -p 5000
+Restart=always
+TimeoutStartSec=10
+RestartSec=10
+ 
+[Install]
+WantedBy=multi-user.target

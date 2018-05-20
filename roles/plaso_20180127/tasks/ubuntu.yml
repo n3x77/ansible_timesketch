@@ -1,0 +1,44 @@
+---
+# file: roles/plaso_stable/tasks/main.yml
+- name: Upgrade dist
+  apt:
+    update_cache: yes
+    upgrade: dist
+
+- name: Plaso | Create temporary directory for packages
+  file:
+    path: "/tmp/plaso-packages"
+    state: directory
+    mode: 0755
+
+- name: Plaso | Copy plaso packages and dependencies
+  unarchive:
+    src: "{{role_path}}/files/plaso-packages.tgz"
+    dest: "/tmp/plaso-packages/"
+
+- name: APT | Get local Plaso dependencies packages
+  command: "ls /tmp/plaso-packages/deps/"
+  register: plaso_dep_packages
+  
+- name: APT | Install plaso-20180127 dependencies
+  apt:
+    deb: "/tmp/plaso-packages/deps/{{ item.1 }}"
+    install_recommends: yes
+    state: present
+  with_indexed_items: "{{ plaso_dep_packages.stdout_lines }}"
+
+- name: APT | Install plaso-20180127
+  apt:
+    deb: "{{ item }}"
+    install_recommends: yes
+    state: present
+  with_items:
+    - "/tmp/plaso-packages/python-dfvfs_20171230-1ppa1~xenial_all.deb"
+    - "/tmp/plaso-packages/python-plaso_20180127-1ppa1~xenial_all.deb"
+    - "/tmp/plaso-packages/plaso-tools_20180127-1ppa1~xenial_all.deb"
+
+- name: Plaso | Delete temporary directory for packages
+  file:
+    path: "/tmp/plaso-packages"
+    state: absent
+    

@@ -1,0 +1,23 @@
+---
+# file: roles/yarn/tasks/ubuntu.yml
+- name: APT | Add Yarn repository key
+  apt_key:
+    url: "https://dl.yarnpkg.com/debian/pubkey.gpg"
+    state: present
+
+- name: APT | Create /etc/apt/sources.list.d/yarn.list
+  file:
+    path: /etc/apt/sources.list.d/yarn.list
+    state: touch
+
+- name: APT | Add Yarn repository to /etc/apt/sources.list.d/yarn.list
+  lineinfile:
+    dest: /etc/apt/sources.list.d/yarn.list
+    line: "deb https://dl.yarnpkg.com/debian/ stable main"
+
+- name: APT | Install Yarn
+  apt:
+    name: yarn
+    state: present
+    install_recommends: yes
+    update_cache: yes

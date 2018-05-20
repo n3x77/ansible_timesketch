@@ -1,0 +1,63 @@
+---
+# file: roles/nginx/tasks/ubuntu.yml
+
+- name: Install nginx and gunicorn
+  apt: 
+    pkg: 
+      - "nginx"
+      - "gunicorn"
+    state: latest
+
+- name: Make SSL directory
+  file:
+    path: /etc/nginx/ssl
+    state: directory
+
+- name: Create self-signed SSL certificate 
+  command: 'openssl req -newkey rsa:4096 -days 365 -nodes -x509 -subj "/O={{ openssl_organization }}/CN={{ fqdn }}/OU={{ openssl_organizational_unit }}" -keyout /etc/nginx/ssl/nginx.key -out /etc/nginx/ssl/nginx.crt'
+
+- name: Create wsgi folder for app socket file
+  file:
+    path: "/home/{{ ansible_user }}/wsgi"
+    state: directory
+    owner: "{{ ansible_user }}"
+    group: "{{ ansible_user }}"
+
+- name: SystemD | Create gunicorn service listening on socket
+  template:
+    src: gunicorn.service.j2
+    dest: /etc/systemd/system/gunicorn.service
+    owner: root
+    group: root
+    mode: '0644'
+
+- name: Systemctl | Reload systemctl daemon
+  command: "systemctl daemon-reload"
+  notify:
+    - Restart gunicorn
+
+- name: Systemctl | Enable systemctl daemon
+  command: "systemctl enable gunicorn"
+
+- name: Delete default nginx-config
+  file:
+    path: /etc/nginx/sites-enabled/default
+    state: absent
+
+- name: NGINX | Copy nginx-config to allow big http ulpoads
+  template:
+    src: nginx.conf.j2
+    dest: "/etc/nginx/nginx.conf"
+    owner: root
+    group: root
+    mode: '0644'
+
+- name: NGINX | Copy nginx-config for WSGI
+  template:
+    src: wsgi.j2
+    dest: "/etc/nginx/sites-enabled/timesketch"
+    owner: root
+    group: root
+    mode: '0644'
+  notify:
+    - Restart nginx

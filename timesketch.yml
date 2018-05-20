@@ -1,0 +1,67 @@
+---
+- hosts: timesketch-servers
+  become: true
+  become_method: sudo
+
+  roles:
+    - { role: yara371 }
+    - { role: plaso_20180127 }
+    - { role: java8 }
+    - { role: elasticsearch_5 }
+    - { role: yarn}
+    - { role: nodejs_8}
+    - { role: neo4j}
+    - { role: timesketch_latest }
+    - { role: nginx_wsgi }
+
+  vars_prompt:
+
+  - name: "fqdn"
+    prompt: "Enter FQDN for nginx webserver"
+    private: no
+    default: "timesketch-dev.local"
+
+  - name: "service_name"
+    prompt: "Enter the NAME OF THE SERVICE (used for logfile /var/log/nginx/<SERVICE>.access.log)"
+    private: no
+    default: "timesketch"
+
+  - name: "openssl_organization"
+    prompt: "Enter the Organization for the self-signed SSL cert:"
+    default: "MyCompany"
+    private: no
+
+  - name: "openssl_organizational_unit"
+    prompt: "Enter the Organization-Unit for the self-signed SSL cert:"
+    default: "Investigation"
+    private: no
+
+  - name: "clustername"
+    prompt: "Enter a name for the CLUSTER"
+    default: "ecluster"
+    private: no
+
+  - name: "heap"
+    prompt: "Enter HEAP-SIZE (about half of RAM) in GB"
+    default: "2"
+    private: no
+
+  - name: "postgresql_db_pw"
+    prompt: "Enter the PostgreSQL DATABASE USER PASSWORD"
+    private: no
+    default: "timesketch"
+
+  - name: "timesketch_user"
+    prompt: "Enter a new TIMESKETCH USER"
+    default: "timesketch" 
+    private: no
+
+  - name: "timesketch_user_pw"
+    prompt: "Enter the new TIMESKETCH USER PASSWORD"
+    private: no
+    default: "timesketch"
+
+  - name: "neo4j_user_pw"
+    prompt: "Enter the password for the neo4j user"
+    private: no
+    default: "neo4j"
